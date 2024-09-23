@@ -54,24 +54,24 @@ defmodule Fishjam.Component.HLS.EtsHelper do
   ### ETS CONTENT MANAGMENT
   ###
 
-  @spec update_manifest(:ets.table(), String.t()) :: true
-  def update_manifest(table, manifest) do
-    :ets.insert(table, {@manifest_key, manifest})
+  @spec update_manifest(:ets.table(), String.t(), String.t()) :: true
+  def update_manifest(table, manifest, manifest_name) do
+    :ets.insert(table, {manifest_key(manifest_name), manifest})
   end
 
-  @spec update_delta_manifest(:ets.table(), String.t()) :: true
-  def update_delta_manifest(table, delta_manifest) do
-    :ets.insert(table, {@delta_manifest_key, delta_manifest})
+  @spec update_delta_manifest(:ets.table(), String.t(), String.t()) :: true
+  def update_delta_manifest(table, delta_manifest, manifest_name) do
+    :ets.insert(table, {delta_manifest_key(manifest_name), delta_manifest})
   end
 
-  @spec update_recent_partial(:ets.table(), partial()) :: true
-  def update_recent_partial(table, partial) do
-    :ets.insert(table, {@recent_partial_key, partial})
+  @spec update_recent_partial(:ets.table(), partial(), String.t()) :: true
+  def update_recent_partial(table, partial, manifest_name) do
+    :ets.insert(table, {recent_partial_key(manifest_name), partial})
   end
 
-  @spec update_delta_recent_partial(:ets.table(), partial()) :: true
-  def update_delta_recent_partial(table, partial) do
-    :ets.insert(table, {@delta_recent_partial_key, partial})
+  @spec update_delta_recent_partial(:ets.table(), partial(), String.t()) :: true
+  def update_delta_recent_partial(table, partial, manifest_name) do
+    :ets.insert(table, {delta_recent_partial_key(manifest_name), partial})
   end
 
   @spec add_partial(:ets.table(), binary(), String.t()) :: true
@@ -100,30 +100,30 @@ defmodule Fishjam.Component.HLS.EtsHelper do
 
   @spec get_partial(ID.id(), String.t()) ::
           {:ok, binary()} | {:error, atom()}
-  def get_partial(room_id, filename) do
-    get_from_ets(room_id, filename)
+  def get_partial(room_id, manifest_name) do
+    get_from_ets(room_id, manifest_name)
   end
 
-  @spec get_recent_partial(ID.id()) ::
+  @spec get_recent_partial(ID.id(), String.t()) ::
           {:ok, {non_neg_integer(), non_neg_integer()}} | {:error, atom()}
-  def get_recent_partial(room_id) do
-    get_from_ets(room_id, @recent_partial_key)
+  def get_recent_partial(room_id, manifest_name) do
+    get_from_ets(room_id, recent_partial_key(manifest_name))
   end
 
-  @spec get_delta_recent_partial(ID.id()) ::
+  @spec get_delta_recent_partial(ID.id(), String.t()) ::
           {:ok, {non_neg_integer(), non_neg_integer()}} | {:error, atom()}
-  def get_delta_recent_partial(room_id) do
-    get_from_ets(room_id, @delta_recent_partial_key)
+  def get_delta_recent_partial(room_id, manifest_name) do
+    get_from_ets(room_id, delta_recent_partial_key(manifest_name))
   end
 
-  @spec get_manifest(ID.id()) :: {:ok, String.t()} | {:error, atom()}
-  def get_manifest(room_id) do
-    get_from_ets(room_id, @manifest_key)
+  @spec get_manifest(ID.id(), String.t()) :: {:ok, String.t()} | {:error, atom()}
+  def get_manifest(room_id, manifest_name) do
+    get_from_ets(room_id, manifest_key(manifest_name))
   end
 
-  @spec get_delta_manifest(ID.id()) :: {:ok, String.t()} | {:error, atom()}
-  def get_delta_manifest(room_id) do
-    get_from_ets(room_id, @delta_manifest_key)
+  @spec get_delta_manifest(ID.id(), String.t()) :: {:ok, String.t()} | {:error, atom()}
+  def get_delta_manifest(room_id, manifest_name) do
+    get_from_ets(room_id, delta_manifest_key(manifest_name))
   end
 
   @spec get_hls_folder_path(ID.id()) :: {:ok, String.t()} | {:error, :room_not_found}
@@ -163,4 +163,16 @@ defmodule Fishjam.Component.HLS.EtsHelper do
   defp room_exists?(room_id) do
     :ets.lookup(@rooms_to_tables, room_id) != []
   end
+
+  defp manifest_key(manifest_name) when is_binary(manifest_name), do:
+    "#{@manifest_key}_#{manifest_name}"
+
+  defp delta_manifest_key(manifest_name) when is_binary(manifest_name), do:
+    "#{@delta_manifest_key}_#{manifest_name}"
+
+  defp recent_partial_key(manifest_name) when is_binary(manifest_name), do:
+    "#{@recent_partial_key}_#{manifest_name}"
+
+  defp delta_recent_partial_key(manifest_name) when is_binary(manifest_name), do:
+    "#{@delta_recent_partial_key}_#{manifest_name}"
 end

@@ -7,21 +7,24 @@ defmodule Fishjam.Component.HLS.RequestHandlerTest do
   alias Fishjam.Component.HLS.EtsHelper
   alias Fishjam.Component.HLS.Local.RequestHandler
 
+  doctest Fishjam.Component.HLS.Utils
+
   @wrong_room_id "321"
 
   @manifest "index.m3u8"
+  @delta_manifest "manifest_delta_index.m3u8"
   @wrong_manifest "wrong.m3u8"
   @manifest_content "manifest"
 
   @partial {1, 1}
-  @partial_name "partial"
+  @partial_name "muxed_segment_1_index_1_part"
   @partial_content <<1, 2, 3>>
 
   @next_partial {1, 2}
-  @next_partial_name "muxed_segment_1_g2QABXZpZGVv_2_part.m4s"
+  @next_partial_name "muxed_segment_1_index_2_part.m4s"
   @next_partial_content <<1, 2, 3, 4>>
 
-  @future_partial_name "muxed_segment_1_g2QABXZpZGVv_4_part.m4s"
+  @future_partial_name "muxed_segment_1_index_4_part.m4s"
 
   setup do
     room_id = UUID.uuid4()
@@ -42,7 +45,7 @@ defmodule Fishjam.Component.HLS.RequestHandlerTest do
     # wait for ets to be removed
     Process.sleep(200)
 
-    assert {:error, :room_not_found} == EtsHelper.get_manifest(room_id)
+    assert {:error, :room_not_found} == EtsHelper.get_manifest(room_id, @manifest)
 
     assert {:ok, _pid} = RequestHandler.start(room_id)
   end
@@ -87,54 +90,54 @@ defmodule Fishjam.Component.HLS.RequestHandlerTest do
   end
 
   test "manifest request", %{room_id: room_id} do
-    assert {:error, :room_not_found} == RequestHandler.handle_manifest_request(room_id, @partial)
+    assert {:error, :room_not_found} == RequestHandler.handle_manifest_request(room_id, @partial, @manifest)
 
     {:ok, table} = EtsHelper.add_room(room_id)
 
-    assert {:error, :file_not_found} == RequestHandler.handle_manifest_request(room_id, @partial)
+    assert {:error, :file_not_found} == RequestHandler.handle_manifest_request(room_id, @partial, @manifest)
 
-    EtsHelper.update_recent_partial(table, @partial)
-    EtsHelper.update_manifest(table, @manifest_content)
-    RequestHandler.update_recent_partial(room_id, @partial)
+    EtsHelper.update_recent_partial(table, @partial, @manifest)
+    EtsHelper.update_manifest(table, @manifest_content, @manifest)
+    RequestHandler.update_recent_partial(room_id, @partial, @manifest)
 
-    assert {:ok, @manifest_content} == RequestHandler.handle_manifest_request(room_id, @partial)
+    assert {:ok, @manifest_content} == RequestHandler.handle_manifest_request(room_id, @partial, @manifest)
 
     task =
       Task.async(fn ->
-        RequestHandler.handle_manifest_request(room_id, @next_partial)
+        RequestHandler.handle_manifest_request(room_id, @next_partial, @manifest)
       end)
 
     assert nil == Task.yield(task, 500)
 
-    RequestHandler.update_recent_partial(room_id, @next_partial)
+    RequestHandler.update_recent_partial(room_id, @next_partial, @manifest)
 
     assert {:ok, @manifest_content} == Task.await(task)
   end
 
   test "delta manifest request", %{room_id: room_id} do
     assert {:error, :room_not_found} ==
-             RequestHandler.handle_delta_manifest_request(room_id, @partial)
+             RequestHandler.handle_delta_manifest_request(room_id, @partial, @delta_manifest)
 
     {:ok, table} = EtsHelper.add_room(room_id)
 
     assert {:error, :file_not_found} ==
-             RequestHandler.handle_delta_manifest_request(room_id, @partial)
+             RequestHandler.handle_delta_manifest_request(room_id, @partial, @delta_manifest)
 
-    EtsHelper.update_delta_recent_partial(table, @partial)
-    EtsHelper.update_delta_manifest(table, @manifest_content)
-    RequestHandler.update_delta_recent_partial(room_id, @partial)
+    EtsHelper.update_delta_recent_partial(table, @partial, @delta_manifest)
+    EtsHelper.update_delta_manifest(table, @manifest_content, @delta_manifest)
+    RequestHandler.update_delta_recent_partial(room_id, @partial, @delta_manifest)
 
     assert {:ok, @manifest_content} ==
-             RequestHandler.handle_delta_manifest_request(room_id, @partial)
+             RequestHandler.handle_delta_manifest_request(room_id, @partial, @delta_manifest)
 
     task =
       Task.async(fn ->
-        RequestHandler.handle_delta_manifest_request(room_id, @next_partial)
+        RequestHandler.handle_delta_manifest_request(room_id, @next_partial, @delta_manifest)
       end)
 
     assert nil == Task.yield(task, 500)
 
-    RequestHandler.update_delta_recent_partial(room_id, @next_partial)
+    RequestHandler.update_delta_recent_partial(room_id, @next_partial, @delta_manifest)
 
     assert {:ok, @manifest_content} == Task.await(task)
   end
@@ -161,8 +164,8 @@ defmodule Fishjam.Component.HLS.RequestHandlerTest do
     {:ok, table} = EtsHelper.add_room(room_id)
 
     EtsHelper.add_partial(table, @partial_content, @partial_name)
-    EtsHelper.update_recent_partial(table, @partial)
-    RequestHandler.update_recent_partial(room_id, @partial)
+    EtsHelper.update_recent_partial(table, @partial, @manifest)
+    RequestHandler.update_recent_partial(room_id, @partial, @manifest)
 
     task =
       Task.async(fn -> RequestHandler.handle_partial_request(room_id, @next_partial_name) end)
@@ -170,10 +173,10 @@ defmodule Fishjam.Component.HLS.RequestHandlerTest do
     assert nil == Task.yield(task, 500)
 
     EtsHelper.add_partial(table, @next_partial_content, @next_partial_name)
-    RequestHandler.update_recent_partial(room_id, @next_partial)
+    EtsHelper.update_recent_partial(table, @next_partial, @manifest)
+    RequestHandler.update_recent_partial(room_id, @next_partial, @manifest)
 
     assert {:ok, @next_partial_content} == Task.await(task)
-
     assert {:error, :file_not_found} ==
              RequestHandler.handle_partial_request(room_id, @future_partial_name)
   end

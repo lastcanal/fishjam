@@ -67,9 +67,9 @@ defmodule FishjamWeb.HLSContentController do
 
     result =
       if String.ends_with?(filename, "_delta.m3u8") do
-        RequestHandler.handle_delta_manifest_request(room_id, partial)
+        RequestHandler.handle_delta_manifest_request(room_id, partial, filename)
       else
-        RequestHandler.handle_manifest_request(room_id, partial)
+        RequestHandler.handle_manifest_request(room_id, partial, filename)
       end
 
     case result do

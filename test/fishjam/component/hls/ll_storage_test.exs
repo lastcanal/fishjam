@@ -6,14 +6,14 @@ defmodule Fishjam.Component.HLS.LLStorageTest do
   alias Fishjam.Component.HLS.{EtsHelper, LLStorage}
   alias Fishjam.Component.HLS.Local.RequestHandler
 
-  @segment_name "segment"
+  @segment_name "muxed_segment_0_manifest.m4s"
   @segment_content <<1, 2, 3>>
 
-  @partial_name "segment_0_part"
+  @partial_name "muxed_segment_0_manifest_0_part.m4s"
   @partial_content <<1, 2, 3, 4>>
   @partial_sn {0, 0}
 
-  @manifest_name "manifest"
+  @manifest_name "manifest.m3u8"
   @manifest_content "manifest_content"
 
   @delta_manifest_name "manifest_delta.m3u8"
@@ -62,8 +62,8 @@ defmodule Fishjam.Component.HLS.LLStorageTest do
     {:ok, storage} = store_partial(storage)
     {:ok, _storage} = store_manifest(storage)
 
-    assert {:ok, @manifest_content} == EtsHelper.get_manifest(room_id)
-    assert {:ok, @partial_sn} == EtsHelper.get_recent_partial(room_id)
+    assert {:ok, @manifest_content} == EtsHelper.get_manifest(room_id, @manifest_name)
+    assert {:ok, @partial_sn} == EtsHelper.get_recent_partial(room_id, @manifest_name)
 
     manifest_path = Path.join(directory, @manifest_name)
     assert {:ok, @manifest_content} == File.read(manifest_path)
@@ -71,7 +71,7 @@ defmodule Fishjam.Component.HLS.LLStorageTest do
     pid = self()
 
     spawn(fn ->
-      {:ok, @manifest_content} = RequestHandler.handle_manifest_request(room_id, @partial_sn)
+      {:ok, @manifest_content} = RequestHandler.handle_manifest_request(room_id, @partial_sn, @manifest_name)
       send(pid, :manifest)
     end)
 
@@ -84,14 +84,14 @@ defmodule Fishjam.Component.HLS.LLStorageTest do
     {:ok, storage} = store_partial(storage)
     {:ok, _storage} = store_delta_manifest(storage)
 
-    assert {:ok, @delta_manifest_content} == EtsHelper.get_delta_manifest(room_id)
-    assert {:ok, @partial_sn} == EtsHelper.get_delta_recent_partial(room_id)
+    assert {:ok, @delta_manifest_content} == EtsHelper.get_delta_manifest(room_id, @delta_manifest_name)
+    assert {:ok, @partial_sn} == EtsHelper.get_delta_recent_partial(room_id, @delta_manifest_name)
 
     manifest_path = Path.join(directory, @delta_manifest_name)
     assert {:ok, @delta_manifest_content} == File.read(manifest_path)
 
     assert {:ok, @delta_manifest_content} ==
-             RequestHandler.handle_delta_manifest_request(room_id, @partial_sn)
+             RequestHandler.handle_delta_manifest_request(room_id, @partial_sn, @delta_manifest_name)
   end
 
   @tag :tmp_dir

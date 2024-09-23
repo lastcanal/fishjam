@@ -10,7 +10,9 @@ defmodule Fishjam.Component.HLS.EtsHelperTest do
   @wrong_partial_name "partial_101"
 
   @manifest "manifest"
+  @manifest_name "index.m3u8"
   @delta_manifest "delta_manifest"
+  @delta_manifest_name "index_delta.m3u8"
 
   @recent_partial {1, 1}
   @delta_recent_partial {2, 2}
@@ -58,32 +60,32 @@ defmodule Fishjam.Component.HLS.EtsHelperTest do
   end
 
   test "manifests managment", %{room_id: room_id, table: table} do
-    assert {:error, :file_not_found} == EtsHelper.get_manifest(room_id)
-    assert {:error, :file_not_found} == EtsHelper.get_delta_manifest(room_id)
+    assert {:error, :file_not_found} == EtsHelper.get_manifest(room_id, @manifest_name)
+    assert {:error, :file_not_found} == EtsHelper.get_delta_manifest(room_id, @delta_manifest_name)
 
-    EtsHelper.update_manifest(table, @manifest)
+    EtsHelper.update_manifest(table, @manifest, @manifest_name)
 
-    assert {:ok, @manifest} == EtsHelper.get_manifest(room_id)
-    assert {:error, :file_not_found} == EtsHelper.get_delta_manifest(room_id)
+    assert {:ok, @manifest} == EtsHelper.get_manifest(room_id, @manifest_name)
+    assert {:error, :file_not_found} == EtsHelper.get_delta_manifest(room_id, @delta_manifest_name)
 
-    EtsHelper.update_delta_manifest(table, @delta_manifest)
+    EtsHelper.update_delta_manifest(table, @delta_manifest, @delta_manifest_name)
 
-    assert {:ok, @manifest} == EtsHelper.get_manifest(room_id)
-    assert {:ok, @delta_manifest} == EtsHelper.get_delta_manifest(room_id)
+    assert {:ok, @manifest} == EtsHelper.get_manifest(room_id,@manifest_name)
+    assert {:ok, @delta_manifest} == EtsHelper.get_delta_manifest(room_id, @delta_manifest_name)
   end
 
   test "recent partial managment", %{room_id: room_id, table: table} do
-    assert {:error, :file_not_found} == EtsHelper.get_recent_partial(room_id)
-    assert {:error, :file_not_found} == EtsHelper.get_delta_recent_partial(room_id)
+    assert {:error, :file_not_found} == EtsHelper.get_recent_partial(room_id, @manifest_name)
+    assert {:error, :file_not_found} == EtsHelper.get_delta_recent_partial(room_id, @delta_manifest_name)
 
-    EtsHelper.update_recent_partial(table, @recent_partial)
+    EtsHelper.update_recent_partial(table, @recent_partial, @manifest_name)
 
-    assert {:ok, @recent_partial} == EtsHelper.get_recent_partial(room_id)
-    assert {:error, :file_not_found} == EtsHelper.get_delta_recent_partial(room_id)
+    assert {:ok, @recent_partial} == EtsHelper.get_recent_partial(room_id, @manifest_name)
+    assert {:error, :file_not_found} == EtsHelper.get_delta_recent_partial(room_id, @delta_manifest_name)
 
-    EtsHelper.update_delta_recent_partial(table, @delta_recent_partial)
+    EtsHelper.update_delta_recent_partial(table, @delta_recent_partial, @delta_manifest_name)
 
-    assert {:ok, @recent_partial} == EtsHelper.get_recent_partial(room_id)
-    assert {:ok, @delta_recent_partial} == EtsHelper.get_delta_recent_partial(room_id)
+    assert {:ok, @recent_partial} == EtsHelper.get_recent_partial(room_id, @manifest_name)
+    assert {:ok, @delta_recent_partial} == EtsHelper.get_delta_recent_partial(room_id, @delta_manifest_name)
   end
 end

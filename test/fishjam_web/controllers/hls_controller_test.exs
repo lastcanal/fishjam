@@ -19,6 +19,8 @@ defmodule FishjamWeb.HLSControllerTest do
 
   @manifest_name "manifest_name.m3u8"
   @manifest_content <<3>>
+
+  @delta_manifest_name "manifest_name_delta.m3u8"
   @delta_manifest_content <<4>>
 
   @master_manifest_name "index.m3u8"
@@ -160,10 +162,10 @@ defmodule FishjamWeb.HLSControllerTest do
     {:ok, table} = EtsHelper.add_room(@room_id)
 
     EtsHelper.add_partial(table, @partial_content, @partial_name)
-    EtsHelper.update_recent_partial(table, @partial_sn)
-    EtsHelper.update_delta_recent_partial(table, @partial_sn)
-    EtsHelper.update_manifest(table, @manifest_content)
-    EtsHelper.update_delta_manifest(table, @delta_manifest_content)
+    EtsHelper.update_recent_partial(table, @partial_sn, @manifest_name)
+    EtsHelper.update_delta_recent_partial(table, @partial_sn, @delta_manifest_name)
+    EtsHelper.update_manifest(table, @manifest_content, @manifest_name)
+    EtsHelper.update_delta_manifest(table, @delta_manifest_content, @delta_manifest_name)
 
     EtsHelper.add_hls_folder_path(@room_id, output_path)
   end
@@ -171,7 +173,7 @@ defmodule FishjamWeb.HLSControllerTest do
   defp prepare_request_handler() do
     {:ok, _pid} = RequestHandler.start(@room_id)
 
-    RequestHandler.update_recent_partial(@room_id, @partial_sn)
-    RequestHandler.update_delta_recent_partial(@room_id, @partial_sn)
+    RequestHandler.update_recent_partial(@room_id, @partial_sn, @manifest_name)
+    RequestHandler.update_delta_recent_partial(@room_id, @partial_sn, @delta_manifest_name)
   end
 end

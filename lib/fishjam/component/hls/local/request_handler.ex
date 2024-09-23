@@ -7,15 +7,17 @@ defmodule Fishjam.Component.HLS.Local.RequestHandler do
   use Bunch.Access
 
   alias Fishjam.Utils.PathValidation
-  alias Fishjam.Component.HLS.{EtsHelper, Recording, RequestHandler}
+  alias Fishjam.Component.HLS.{EtsHelper, Recording, RequestHandler, Utils}
   alias Fishjam.Room.ID
+
+  @default_status %{waiting_pids: %{}, last_partial: nil}
 
   @enforce_keys [:room_id, :room_pid]
   defstruct @enforce_keys ++
               [
-                preload_hints: [],
-                manifest: %{waiting_pids: %{}, last_partial: nil},
-                delta_manifest: %{waiting_pids: %{}, last_partial: nil}
+                preload_hints: %{},
+                manifest: %{},
+                delta_manifest: %{}
               ]
 
   @type status :: %{
@@ -26,9 +28,9 @@ defmodule Fishjam.Component.HLS.Local.RequestHandler do
   @type t :: %__MODULE__{
           room_id: ID.id(),
           room_pid: pid(),
-          manifest: status(),
-          delta_manifest: status(),
-          preload_hints: [pid()]
+          manifest: %{ String.t() => status() },
+          delta_manifest: %{ String.t() => status() },
+          preload_hints: %{String.t() => [pid()]}
         }
 
   ###
@@ -95,24 +97,24 @@ defmodule Fishjam.Component.HLS.Local.RequestHandler do
   end
 
   @impl Fishjam.Component.HLS.RequestHandler
-  def handle_manifest_request(room_id, partial) do
-    with {:ok, last_partial} <- EtsHelper.get_recent_partial(room_id) do
+  def handle_manifest_request(room_id, partial, filename) do
+    with {:ok, last_partial} <- EtsHelper.get_recent_partial(room_id, filename) do
       unless partial_ready?(partial, last_partial) do
-        wait_for_manifest_ready(room_id, partial, :manifest)
+        wait_for_manifest_ready(room_id, partial, :manifest, filename)
       end
 
-      EtsHelper.get_manifest(room_id)
+      EtsHelper.get_manifest(room_id, filename)
     end
   end
 
   @impl Fishjam.Component.HLS.RequestHandler
-  def handle_delta_manifest_request(room_id, partial) do
-    with {:ok, last_partial} <- EtsHelper.get_delta_recent_partial(room_id) do
+  def handle_delta_manifest_request(room_id, partial, filename) do
+    with {:ok, last_partial} <- EtsHelper.get_delta_recent_partial(room_id, filename) do
       unless partial_ready?(partial, last_partial) do
-        wait_for_manifest_ready(room_id, partial, :delta_manifest)
+        wait_for_manifest_ready(room_id, partial, :delta_manifest, filename)
       end
 
-      EtsHelper.get_delta_manifest(room_id)
+      EtsHelper.get_delta_manifest(room_id, filename)
     end
   end
 
@@ -120,14 +122,14 @@ defmodule Fishjam.Component.HLS.Local.RequestHandler do
   ### STORAGE API
   ###
 
-  @spec update_recent_partial(ID.id(), RequestHandler.partial()) :: :ok
-  def update_recent_partial(room_id, partial) do
-    GenServer.cast(registry_id(room_id), {:update_recent_partial, partial, :manifest})
+  @spec update_recent_partial(ID.id(), RequestHandler.partial(), String.t()) :: :ok
+  def update_recent_partial(room_id, partial, filename) do
+    GenServer.cast(registry_id(room_id), {:update_recent_partial, partial, :manifest, filename})
   end
 
-  @spec update_delta_recent_partial(ID.id(), RequestHandler.partial()) :: :ok
-  def update_delta_recent_partial(room_id, partial) do
-    GenServer.cast(registry_id(room_id), {:update_recent_partial, partial, :delta_manifest})
+  @spec update_delta_recent_partial(ID.id(), RequestHandler.partial(), String.t()) :: :ok
+  def update_delta_recent_partial(room_id, partial, filename) do
+    GenServer.cast(registry_id(room_id), {:update_recent_partial, partial, :delta_manifest, filename})
   end
 
   ###
@@ -153,26 +155,32 @@ defmodule Fishjam.Component.HLS.Local.RequestHandler do
 
   @impl true
   def handle_cast(
-        {:update_recent_partial, last_partial, manifest},
+        {:update_recent_partial, last_partial, manifest, filename},
         %{preload_hints: preload_hints} = state
       ) do
-    status = Map.fetch!(state, manifest)
+    new_manifests = state[manifest]
+      |> Map.get(filename, @default_status)
+      |> update_and_notify_manifest_ready(last_partial)
+      |> then(&Map.put(state[manifest], filename, &1))
 
+    new_preload_hints = preload_hints
+      |> Map.get(filename, [])
+      |> update_and_notify_preload_hint_ready()
+      |> then(&Map.put(preload_hints, filename, &1))
     state =
       state
-      |> Map.put(manifest, update_and_notify_manifest_ready(status, last_partial))
-      |> Map.put(:preload_hints, update_and_notify_preload_hint_ready(preload_hints))
+      |> Map.put(manifest, new_manifests)
+      |> Map.put(:preload_hints, new_preload_hints)
 
     {:noreply, state}
   end
 
   @impl true
-  def handle_cast({:partial_ready?, partial, from, manifest}, state) do
-    state =
-      state
-      |> Map.fetch!(manifest)
-      |> handle_partial_ready?(partial, from)
-      |> then(&Map.put(state, manifest, &1))
+  def handle_cast({:partial_ready?, partial, from, manifest, filename}, state) do
+    state = state[manifest][filename]
+    |> handle_partial_ready?(partial, from)
+    |> then(&Map.put(state[manifest], filename, &1))
+    |> then(&Map.put(state, manifest, &1))
 
     {:noreply, state}
   end
@@ -184,7 +192,16 @@ defmodule Fishjam.Component.HLS.Local.RequestHandler do
       {:noreply, state}
     else
       {:error, _reason} ->
-        {:noreply, %{state | preload_hints: [from | state.preload_hints]}}
+        preload_hints = if {:ok, manifest_name} = Utils.get_manifest_name(filename) do
+          hints_for_file = state
+            |> Map.get(:preload_hints, %{})
+            |> Map.get(filename, [])
+          Map.put(state.preload_hints, manifest_name, [from | hints_for_file])
+        else
+          state.preload_hints
+        end
+
+      {:noreply, %{ state | preload_hints: preload_hints }}
     end
   end
 
@@ -207,8 +224,8 @@ defmodule Fishjam.Component.HLS.Local.RequestHandler do
   ### PRIVATE FUNCTIONS
   ###
 
-  defp wait_for_manifest_ready(room_id, partial, manifest) do
-    GenServer.cast(registry_id(room_id), {:partial_ready?, partial, self(), manifest})
+  defp wait_for_manifest_ready(room_id, partial, manifest, filename) do
+    GenServer.cast(registry_id(room_id), {:partial_ready?, partial, self(), manifest, filename})
 
     receive do
       :manifest_ready ->
@@ -262,7 +279,8 @@ defmodule Fishjam.Component.HLS.Local.RequestHandler do
   defp preload_hint?(room_id, filename) do
     partial_sn = get_partial_sn(filename)
 
-    with {:ok, recent_partial_sn} <- EtsHelper.get_recent_partial(room_id) do
+    with {:ok, manifest_name} <- Utils.get_manifest_name(filename),
+         {:ok, recent_partial_sn} <- EtsHelper.get_recent_partial(room_id, manifest_name) do
       {:ok, check_if_preload_hint(partial_sn, recent_partial_sn)}
     end
   end

@@ -18,12 +18,12 @@ defmodule Fishjam.Component.HLS.Cluster.RequestHandler do
     do: route_request(room_id, :handle_partial_request, [room_id, filename])
 
   @impl true
-  def handle_manifest_request(room_id, partial),
-    do: route_request(room_id, :handle_manifest_request, [room_id, partial])
+  def handle_manifest_request(room_id, partial, filename),
+    do: route_request(room_id, :handle_manifest_request, [room_id, partial, filename])
 
   @impl true
-  def handle_delta_manifest_request(room_id, partial),
-    do: route_request(room_id, :handle_delta_manifest_request, [room_id, partial])
+  def handle_delta_manifest_request(room_id, partial, filename),
+    do: route_request(room_id, :handle_delta_manifest_request, [room_id, partial, filename])
 
   defp route_request(room_id, fun, args) do
     with {:ok, node} <- Room.ID.determine_node(room_id),

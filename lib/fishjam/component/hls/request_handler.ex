@@ -31,12 +31,12 @@ defmodule Fishjam.Component.HLS.RequestHandler do
   @doc """
   Handles manifest requests with specific partial requested (ll-hls)
   """
-  @callback handle_manifest_request(ID.id(), partial()) ::
+  @callback handle_manifest_request(ID.id(), partial(), String.t()) ::
               {:ok, String.t()} | {:error, atom()}
 
   @doc """
   Handles delta manifest requests with specific partial requested (ll-hls)
   """
-  @callback handle_delta_manifest_request(ID.id(), partial()) ::
+  @callback handle_delta_manifest_request(ID.id(), partial(), String.t()) ::
               {:ok, String.t()} | {:error, atom()}
 end
